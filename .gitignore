@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Environment
+.venv/
+.python-version
+
+# Large data files
+*.parquet
+core.*
+
+# Slurm / runtime output
+weights/
+logs/
+temp/
+data/
+
+# Notebooks (scratch work)
+notebooks/
+
+# Keep plots and text results (tracked via results/)
+# !results/**/*.png
+# !results/**/*.txt
