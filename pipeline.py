@@ -85,13 +85,13 @@ class LambdaOptimizer:
     def map_to_assets(
         self,
         factor_alphas: pl.DataFrame,
-        exposures: pl.LazyFrame,
-        assets: pl.LazyFrame,
+        start: dt.date,
+        end: dt.date,
         min_price: float = 5.0,
     ) -> pl.DataFrame:
         """
         Map factor alphas → stock alphas, join with assets, and filter universe.
-        Stays lazy until the final collect to avoid OOM on large exposure data.
+        Processes one year at a time to avoid OOM on large exposure data.
 
         Returns df with columns: date, barrid, predicted_beta, alpha.
         """
@@ -103,35 +103,55 @@ class LambdaOptimizer:
             for c in factor_cols
         ]
 
-        # Lazy pipeline: join exposures × alphas, compute dot product
-        stock_alphas = (
-            exposures
-            .join(factor_alphas.lazy(), on="date", suffix="_alpha")
-            .select("date", "barrid", *alpha_terms)
-            .with_columns(
-                pl.sum_horizontal([f"{c}_term" for c in factor_cols]).alias("alpha")
-            )
-            .select("date", "barrid", "alpha")
+        # Load assets once (small: only 4 columns)
+        assets = self.load_assets(start, end).collect().sort(["barrid", "date"])
+        assets = assets.with_columns(
+            pl.col("price").shift(1).over("barrid").alias("prev_price")
         )
 
-        # Join with assets and apply universe filter (all still lazy)
-        result = (
-            stock_alphas
-            .join(
-                assets.with_columns(
-                    pl.col("price").shift(1).over("barrid").alias("prev_price")
-                ),
-                on=["date", "barrid"],
-                how="inner",
-            )
-            .filter(
-                (pl.col("prev_price") > min_price) &
-                pl.col("predicted_beta").is_not_null() &
-                pl.col("alpha").is_not_null()
-            )
-            .select("date", "barrid", "predicted_beta", "alpha")
-            .collect()
-        )
+        # Process year by year
+        years = range(start.year, end.year + 1)
+        chunks = []
 
-        return result
+        for year in years:
+            year_alphas = factor_alphas.filter(
+                (pl.col("date").dt.year() == year)
+            )
+            if year_alphas.height == 0:
+                continue
+
+            # Load just this year's exposures
+            path = EXPOSURES_PATH.replace("*", str(year))
+            try:
+                exp_year = pl.read_parquet(path)
+            except FileNotFoundError:
+                continue
+
+            # Join exposures × factor alphas, compute dot product
+            merged = exp_year.join(year_alphas, on="date", suffix="_alpha")
+            stock_alphas = (
+                merged.select("date", "barrid", *alpha_terms)
+                .with_columns(
+                    pl.sum_horizontal([f"{c}_term" for c in factor_cols]).alias("alpha")
+                )
+                .select("date", "barrid", "alpha")
+            )
+
+            # Join with assets and filter
+            year_assets = assets.filter(pl.col("date").dt.year() == year)
+            filtered = (
+                stock_alphas.join(year_assets, on=["date", "barrid"], how="inner")
+                .filter(
+                    (pl.col("prev_price") > min_price) &
+                    pl.col("predicted_beta").is_not_null() &
+                    pl.col("alpha").is_not_null()
+                )
+                .select("date", "barrid", "predicted_beta", "alpha")
+            )
+            chunks.append(filtered)
+
+            # Free memory
+            del exp_year, merged, stock_alphas, filtered
+
+        return pl.concat(chunks).sort("date", "barrid")
 

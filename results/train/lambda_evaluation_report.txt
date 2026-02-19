@@ -1,0 +1,5 @@
+Loading asset returns...
+
+Lambda Performance Summary:
+Lambda     Half-Life    Mean Ret %   Vol %      Sharpe  
+-------------------------------------------------------

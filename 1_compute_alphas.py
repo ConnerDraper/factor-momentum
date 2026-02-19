@@ -26,23 +26,21 @@ def main():
     print(f"Split: {args.split} ({split['start']} to {split['end']})")
     print(f"Computing alphas for {len(lambdas)} lambda value(s)...\n")
 
-    # Load shared data once
+    # Load factor returns (small — wide format, ~3700 rows)
     returns = optimizer.load_factor_returns(split["start"], split["end"])
-    exposures = optimizer.load_exposures(split["start"], split["end"])
-    assets = optimizer.load_assets(split["start"], split["end"])
 
     for lamb in lambdas:
         hl = int(0.693 / lamb)
-        print(f"  λ={lamb:.6f} (half-life {hl}d)...", end=" ", flush=True)
+        print(f"  λ={lamb:.6f} (half-life {hl}d)...", flush=True)
 
         factor_alphas = optimizer.compute_alphas(returns, lamb)
-        filtered = optimizer.map_to_assets(factor_alphas, exposures, assets)
+        filtered = optimizer.map_to_assets(factor_alphas, split["start"], split["end"])
 
         out = alphas_path(args.split, lamb)
         os.makedirs(os.path.dirname(out), exist_ok=True)
         filtered.write_parquet(out)
 
-        print(f"✓ {filtered.height:,} rows → {out}")
+        print(f"    ✓ {filtered.height:,} rows → {out}")
 
     print("\nDone.")
 

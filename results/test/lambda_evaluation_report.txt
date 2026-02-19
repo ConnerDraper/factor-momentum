@@ -1,0 +1,14 @@
+Loading asset returns...
+
+Lambda Performance Summary:
+Lambda     Half-Life    Mean Ret %   Vol %      Sharpe  
+-------------------------------------------------------
+0.033000  21d         NO DATA
+0.016500  42d         NO DATA
+0.011000  63d         NO DATA
+0.005500  126d        NO DATA
+0.003667   189d           1.25       4.45     0.281
+0.002750  252d        NO DATA
+-------------------------------------------------------
+Optimal:   λ=0.003667 (HL=189d)
+Sharpe:    0.281

@@ -1,0 +1,13 @@
+Loading weights for λ=0.003667 (HL=188d)...
+Loading asset returns...
+
+Backtest Summary
+------------------------------
+Signal:       factor_momentum_lambda_0.003667
+Split:        test (2010-01-01 to 2025-01-01)
+Lambda:       0.003667 (HL: 188 days)
+------------------------------
+Mean Return:  1.25%
+Volatility:   4.45%
+Sharpe Ratio: 0.281
+------------------------------
