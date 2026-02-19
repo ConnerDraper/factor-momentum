@@ -4,10 +4,12 @@ Step 2: Submit Slurm backtest jobs for each saved alpha file.
 Usage:
     python 2_backtest.py --split train
     python 2_backtest.py --split test --lambda 0.015873
-    python 2_backtest.py --split train --dry-run  # print scripts without submitting
+    python 2_backtest.py --split train --dry-run   # print scripts without submitting
+    python 2_backtest.py --split train --clean      # wipe old weights before submitting
 """
 import argparse
 import os
+import shutil
 
 from sf_backtester import BacktestConfig, BacktestRunner, SlurmConfig
 from config import SPLITS, LAMBDA_GRID, GAMMA, CONSTRAINTS, BYU_EMAIL, PROJECT_ROOT, signal_name, alphas_path, weights_dir, split_dir
@@ -19,6 +21,7 @@ def main():
     parser.add_argument("--lambda", dest="lamb", type=float, default=None,
                         help="Single lambda value (default: use full grid)")
     parser.add_argument("--dry-run", action="store_true", help="Print scripts without submitting")
+    parser.add_argument("--clean", action="store_true", help="Wipe old weights before submitting")
     args = parser.parse_args()
 
     lambdas = [args.lamb] if args.lamb else LAMBDA_GRID
@@ -42,8 +45,11 @@ def main():
             print(f"  ✗ λ={lamb:.6f} (HL={hl}d): {data_path} not found, skipping")
             continue
 
-        # Create output directory
+        # Clean old weights if requested, then create output directory
         out_dir = weights_dir(args.split, lamb)
+        if args.clean and os.path.exists(out_dir):
+            shutil.rmtree(out_dir)
+            print(f"    (cleaned {out_dir})")
         os.makedirs(out_dir, exist_ok=True)
 
         config = BacktestConfig(

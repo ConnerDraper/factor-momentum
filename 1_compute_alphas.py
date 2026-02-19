@@ -36,8 +36,7 @@ def main():
         print(f"  λ={lamb:.6f} (half-life {hl}d)...", end=" ", flush=True)
 
         factor_alphas = optimizer.compute_alphas(returns, lamb)
-        stock_alphas = optimizer.map_to_assets(factor_alphas, exposures)
-        filtered = optimizer.filter_universe(stock_alphas, assets)
+        filtered = optimizer.map_to_assets(factor_alphas, exposures, assets)
 
         out = alphas_path(args.split, lamb)
         os.makedirs(os.path.dirname(out), exist_ok=True)

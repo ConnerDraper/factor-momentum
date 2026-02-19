@@ -82,42 +82,56 @@ class LambdaOptimizer:
             in_universe=True,
         ).lazy()
 
-    def map_to_assets(self, factor_alphas: pl.DataFrame, exposures: pl.LazyFrame) -> pl.DataFrame:
+    def map_to_assets(
+        self,
+        factor_alphas: pl.DataFrame,
+        exposures: pl.LazyFrame,
+        assets: pl.LazyFrame,
+        min_price: float = 5.0,
+    ) -> pl.DataFrame:
         """
-        Map factor-level alphas to stock-level alphas.
-            stock_alpha = sum(exposure_i * factor_alpha_i) for each factor i
+        Map factor alphas → stock alphas, join with assets, and filter universe.
+        Stays lazy until the final collect to avoid OOM on large exposure data.
+
+        Returns df with columns: date, barrid, predicted_beta, alpha.
         """
         factor_cols = [c for c in factor_alphas.columns if c != "date"]
-        exp_df = exposures.collect()
-        merged = exp_df.join(factor_alphas, on="date", suffix="_alpha")
 
+        # Build dot-product expressions: sum(exposure_i * alpha_i)
         alpha_terms = [
             (pl.col(c) * pl.col(f"{c}_alpha")).alias(f"{c}_term")
             for c in factor_cols
         ]
-        result = merged.select(
-            "date", "barrid", *alpha_terms
-        ).with_columns(
-            pl.sum_horizontal([f"{c}_term" for c in factor_cols]).alias("alpha")
-        ).select("date", "barrid", "alpha")
+
+        # Lazy pipeline: join exposures × alphas, compute dot product
+        stock_alphas = (
+            exposures
+            .join(factor_alphas.lazy(), on="date", suffix="_alpha")
+            .select("date", "barrid", *alpha_terms)
+            .with_columns(
+                pl.sum_horizontal([f"{c}_term" for c in factor_cols]).alias("alpha")
+            )
+            .select("date", "barrid", "alpha")
+        )
+
+        # Join with assets and apply universe filter (all still lazy)
+        result = (
+            stock_alphas
+            .join(
+                assets.with_columns(
+                    pl.col("price").shift(1).over("barrid").alias("prev_price")
+                ),
+                on=["date", "barrid"],
+                how="inner",
+            )
+            .filter(
+                (pl.col("prev_price") > min_price) &
+                pl.col("predicted_beta").is_not_null() &
+                pl.col("alpha").is_not_null()
+            )
+            .select("date", "barrid", "predicted_beta", "alpha")
+            .collect()
+        )
 
         return result
 
-    def filter_universe(self, stock_alphas: pl.DataFrame, assets: pl.LazyFrame, min_price: float = 5.0) -> pl.DataFrame:
-        """
-        Filter stocks by price > min_price (lagged 1 day) and non-null betas.
-        Returns df with columns: date, barrid, predicted_beta, alpha.
-        """
-        assets_df = assets.collect().sort(["barrid", "date"])
-        assets_df = assets_df.with_columns(
-            pl.col("price").shift(1).over("barrid").alias("prev_price")
-        )
-
-        merged = stock_alphas.join(assets_df, on=["date", "barrid"], how="inner")
-        filtered = merged.filter(
-            (pl.col("prev_price") > min_price) &
-            pl.col("predicted_beta").is_not_null() &
-            pl.col("alpha").is_not_null()
-        ).select("date", "barrid", "predicted_beta", "alpha")
-
-        return filtered
