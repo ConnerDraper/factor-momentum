@@ -33,16 +33,16 @@ Shared logic lives in `pipeline.py`; dates, parameters, and paths are in `config
 
 ```bash
 # Train: find optimal lambda (1995–2010)
-python 1_compute_alphas.py --split train
-python 2_backtest.py --split train
+uv run python 1_compute_alphas.py --split train
+uv run python 2_backtest.py --split train
 # ⏳ wait for Slurm
-python 3_evaluate_lambdas.py --split train
+uv run python 3_evaluate_lambdas.py --split train
 
 # Test: validate with optimal lambda (2010–2025)
-python 1_compute_alphas.py --split test --lambda <optimal>
-python 2_backtest.py --split test --lambda <optimal>
+uv run python 1_compute_alphas.py --split test --lambda <optimal>
+uv run python 2_backtest.py --split test --lambda <optimal>
 # ⏳ wait for Slurm
-python 4_visualize.py --split test --lambda <optimal>
+uv run python 4_visualize.py --split test --lambda <optimal>
 ```
 
 ## Output Structure
