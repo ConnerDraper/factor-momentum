@@ -1,0 +1,14 @@
+Constructing dynamic optimal portfolio for train split...
+Loading asset returns...
+Loading lambda weights and computing daily returns...
+  Warning: No data for λ=0.033000 (HL=21d), skipping
+  Warning: No data for λ=0.016500 (HL=42d), skipping
+  Warning: No data for λ=0.011000 (HL=63d), skipping
+  Warning: No data for λ=0.005500 (HL=126d), skipping
+  Warning: No data for λ=0.003667 (HL=189d), skipping
+  Warning: No data for λ=0.002750 (HL=252d), skipping
+  Warning: No data for λ=0.001833 (HL=378d), skipping
+  Warning: No data for λ=0.001375 (HL=504d), skipping
+  Warning: No data for λ=0.000917 (HL=756d), skipping
+  Warning: No data for λ=0.000687 (HL=1008d), skipping
+Error: No lambda weights found. Run Step 2 first.

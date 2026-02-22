@@ -5,14 +5,21 @@ import datetime as dt
 
 # ── Date splits ─────────────────────────────────────────────────────────────
 SPLITS = {
+    "full": {"start": dt.date(1995, 1, 1), "end": dt.date(2025, 1, 1)},
     "train": {"start": dt.date(1995, 1, 1), "end": dt.date(2010, 1, 1)},
-    "test":  {"start": dt.date(2010, 1, 1), "end": dt.date(2025, 1, 1)},
+    "test": {"start": dt.date(2010, 1, 1), "end": dt.date(2025, 1, 1)},
 }
 
 # ── Strategy parameters ────────────────────────────────────────────────────
-GAMMA = 50
-IC = 0.05
+GAMMA = 50          # Risk aversion parameter for Mean-Variance Optimization (MVO)
+IC = 0.05           # Assumed Information Coefficient for alpha generation
 
+# Window length (in days) used for the Exponentially Weighted Moving Average 
+# to calculate trailing Sharpe for the dynamic lambda portfolio
+TRAILING_PERF_SPAN_DAYS = 756 
+
+# Grid of half-lives (HL) to test, represented as lambda decay parameters.
+# lambda = ln(2) / HL
 LAMBDA_GRID = [
     0.693/21,   # HL = 1 mo
     0.693/42,   # HL = 2 mo
@@ -20,10 +27,10 @@ LAMBDA_GRID = [
     0.693/126,  # HL = 6 mo
     0.693/189,  # HL = 9 mo
     0.693/252,  # HL = 12 mo
-    # 0.693/378,  # HL = 18 mo
-    # 0.693/504,  # HL = 24 mo
-    # 0.693/756,  # HL = 36 mo
-    # 0.693/1008, # HL = 48 mo
+    0.693/378,  # HL = 18 mo
+    0.693/504,  # HL = 24 mo
+    0.693/756,  # HL = 36 mo
+    0.693/1008, # HL = 48 mo
 ]
 
 # ── Paths ───────────────────────────────────────────────────────────────────
@@ -33,6 +40,7 @@ EXPOSURES_PATH = "/home/connerd4/groups/grp_quant/database/development/exposures
 BYU_EMAIL = "connerd4@byu.edu"
 
 # ── Backtest constraints ───────────────────────────────────────────────────
+# Active portfolio constraints explicitly passed to the sf_backtester runner
 CONSTRAINTS = ["ZeroBeta", "ZeroInvestment"]
 
 

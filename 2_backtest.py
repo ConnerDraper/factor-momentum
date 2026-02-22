@@ -17,7 +17,7 @@ from config import SPLITS, LAMBDA_GRID, GAMMA, CONSTRAINTS, BYU_EMAIL, PROJECT_R
 
 def main():
     parser = argparse.ArgumentParser(description="Submit Slurm backtests")
-    parser.add_argument("--split", required=True, choices=["train", "test"])
+    parser.add_argument("--split", required=True, choices=list(SPLITS.keys()))
     parser.add_argument("--lambda", dest="lamb", type=float, default=None,
                         help="Single lambda value (default: use full grid)")
     parser.add_argument("--dry-run", action="store_true", help="Print scripts without submitting")
@@ -29,7 +29,7 @@ def main():
     slurm_config = SlurmConfig(
         n_cpus=8,
         mem="32G",
-        time="04:00:00",
+        time="08:00:00",
         mail_type="BEGIN,END,FAIL",
         max_concurrent_jobs=30,
     )

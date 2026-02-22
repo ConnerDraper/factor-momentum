@@ -14,7 +14,7 @@ from pipeline import LambdaOptimizer
 
 def main():
     parser = argparse.ArgumentParser(description="Compute alphas for each lambda")
-    parser.add_argument("--split", required=True, choices=["train", "test"])
+    parser.add_argument("--split", required=True, choices=list(SPLITS.keys()))
     parser.add_argument("--lambda", dest="lamb", type=float, default=None,
                         help="Single lambda value (default: use full grid)")
     args = parser.parse_args()
