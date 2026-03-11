@@ -123,7 +123,7 @@ def main():
     for name, df in all_returns.group_by("name"):
         df = df.sort("date").fill_null(0.0)
         
-        mean_ret = df["return"].mean() * 252 * 100
+        mean_ret = df["return"].log1p().mean() * 252 * 100
         vol = df["return"].std() * (252 ** 0.5) * 100
         sharpe = mean_ret / vol if vol > 0 else 0.0
         
