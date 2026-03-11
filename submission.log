@@ -1,0 +1,36 @@
+nohup: ignoring input
+Split: test
+Submitting 3 backtest(s)...
+
+    (cleaned /home/connerd4/silverfund/momentum/results/test/weights/factor_momentum_style/50)
+Preparing backtest for 15 years: 2010-2024
+Signal: factor_momentum_style
+Gamma: 50
+Constraints: ['ZeroBeta', 'ZeroInvestment']
+Output directory: /home/connerd4/silverfund/momentum/results/test/weights/factor_momentum_style/50
+Job submitted successfully!
+sbatch output: Submitted batch job 10787485
+
+  ✓ Group=Style submitted
+    (cleaned /home/connerd4/silverfund/momentum/results/test/weights/factor_momentum_industry/50)
+Preparing backtest for 15 years: 2010-2024
+Signal: factor_momentum_industry
+Gamma: 50
+Constraints: ['ZeroBeta', 'ZeroInvestment']
+Output directory: /home/connerd4/silverfund/momentum/results/test/weights/factor_momentum_industry/50
+Job submitted successfully!
+sbatch output: Submitted batch job 10787486
+
+  ✓ Group=Industry submitted
+    (cleaned /home/connerd4/silverfund/momentum/results/test/weights/factor_momentum_all/50)
+Preparing backtest for 15 years: 2010-2024
+Signal: factor_momentum_all
+Gamma: 50
+Constraints: ['ZeroBeta', 'ZeroInvestment']
+Output directory: /home/connerd4/silverfund/momentum/results/test/weights/factor_momentum_all/50
+Job submitted successfully!
+sbatch output: Submitted batch job 10787506
+
+  ✓ Group=All submitted
+
+Done. Wait for Slurm jobs to finish before running step 3.

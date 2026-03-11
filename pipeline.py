@@ -3,68 +3,90 @@ Shared pipeline logic for factor momentum.
 All heavy computation lives here; numbered scripts are thin callers.
 """
 import datetime as dt
+import numpy as np
 import polars as pl
 import sf_quant.data as sfd
-from config import FACTORS_PATH, EXPOSURES_PATH, IC
+from config import (
+    FACTORS_PATH, EXPOSURES_PATH, IC, 
+    STYLE_FACTORS, INDUSTRY_FACTORS, WINDOW_LENGTH, SKIP_LENGTH
+)
+
+# Configure Silverfund Data path
+#sfd.env(root="/home/connerd4", database="groups/grp_quant/database/research")
 
 
-class LambdaOptimizer:
+class FactorOptimizer:
     """Compute factor momentum alphas, map to stocks, and submit backtests."""
 
     def load_factor_returns(self, start: dt.date, end: dt.date) -> pl.LazyFrame:
-        """Load factor returns for the given date range."""
+        """
+        Load factor returns for the given date range. 
+        Pad start date by ~400 calendar days to allow rolling calculations (252 trading days).
+        """
+        padded_start = start - dt.timedelta(days=400)
         return pl.scan_parquet(FACTORS_PATH).filter(
-            (pl.col("date") >= start) & (pl.col("date") <= end)
+            (pl.col("date") >= padded_start) & (pl.col("date") <= end)
         )
 
-    def compute_alphas(self, returns: pl.LazyFrame, lamb: float) -> pl.DataFrame:
+    def compute_alphas(self, returns: pl.LazyFrame, factor_group: str) -> pl.DataFrame:
         """
-        Compute alphas from factor returns using EWMA momentum signal.
-            signal_i = EWMA(returns_i) / sqrt(EWMA(returns_i²)) for each factor i
-        Normalize signals cross-sectionally, then:
-            alpha_{i,t} = IC * risk_{i,t-1} * score_{i,t-1}
+        Compute alphas from factor returns using Top-Down to Bottom-Up strategy.
         """
         df = returns.collect().sort("date")
-        factor_cols = [c for c in df.columns if c != "date"]
+        
+        # Determine factor columns based on group
+        if factor_group == "Style":
+            factor_cols = [c for c in df.columns if c.split("_")[-1] in STYLE_FACTORS]
+        elif factor_group == "Industry":
+            factor_cols = [c for c in df.columns if c.split("_")[-1] in INDUSTRY_FACTORS]
+        elif factor_group == "All":
+            factor_cols = [c for c in df.columns if c.split("_")[-1] in STYLE_FACTORS or c.split("_")[-1] in INDUSTRY_FACTORS]
+        else:
+            raise ValueError(f"Unknown factor group: {factor_group}")
+            
+        factor_cols = [c for c in factor_cols if c in df.columns]
 
-        # EWMA of returns (momentum signal) and EWMA of r² (variance proxy)
-        ewma_ret = df.select(
+        # 1. Calculate Rolling Sum (Momentum Signal)
+        signal = df.select(
             "date",
-            *[pl.col(c).ewm_mean(alpha=lamb).alias(c) for c in factor_cols]
-        )
-        ewma_vol = df.select(
-            "date",
-            *[pl.col(c).pow(2).ewm_mean(alpha=lamb).sqrt().alias(c) for c in factor_cols]
+            *[pl.col(c).rolling_sum(window_size=WINDOW_LENGTH).shift(SKIP_LENGTH).alias(c) for c in factor_cols]
         )
 
-        # Vol-adjusted signal: EWMA(return) / sqrt(EWMA(return²))
-        signal = pl.DataFrame({
-            "date": ewma_ret["date"],
-            **{c: ewma_ret[c] / ewma_vol[c] for c in factor_cols}
+        # 3. Volatility Scaling (Risk Equalization)
+        vol = df.select(
+            "date",
+            *[pl.col(c).rolling_std(window_size=WINDOW_LENGTH).shift(SKIP_LENGTH).alias(c) for c in factor_cols]
+        )
+
+        scaled_signal = pl.DataFrame({
+            "date": signal["date"],
+            **{c: signal[c] / vol[c] for c in factor_cols}
         })
 
-        # Cross-sectional z-score (across factors per day), clipped to [-3, 3]
-        signal_vals = signal.select(factor_cols)
+        # 4. Cross-Sectional Z-Score
+        signal_vals = scaled_signal.select(factor_cols)
+        
+        # Calculate row mean ignoring nulls/NaNs
         row_mean = signal_vals.mean_horizontal()
+        
+        # Calculate squared differences
         sq_diffs = signal_vals.select(
             *[(pl.col(c) - row_mean).pow(2).alias(c) for c in factor_cols]
         )
+        
+        # Calculate row std ignoring nulls/NaNs
         row_std = sq_diffs.mean_horizontal().sqrt()
 
+        # Z-score and clip, then fill remaining NaNs with 0 (neutral view)
         scores = pl.DataFrame({
-            c: ((signal[c] - row_mean) / row_std).clip(-3.0, 3.0)
-            for c in factor_cols
+            c: ((scaled_signal[c] - row_mean) / row_std).clip(-3.0, 3.0).fill_nan(0.0).fill_null(0.0) for c in factor_cols
         })
 
-        # Alpha = IC * risk_{t-1} * score_{t-1}
-        # Risk proxy = sqrt(EWMA(r²)), lagged by 1 day
-        risk_lagged = ewma_vol.select(factor_cols).shift(1)
-        scores_lagged = scores.shift(1)
-
+        # 5. Factor Alpha Mapping
         alphas = pl.DataFrame({
             "date": df["date"],
-            **{c: IC * risk_lagged[c] * scores_lagged[c] for c in factor_cols}
-        }).drop_nulls()
+            **{c: (IC * vol[c].fill_nan(0.0).fill_null(0.0) * np.sqrt(252) * scores[c]).fill_nan(0.0).fill_null(0.0) for c in factor_cols}
+        }).drop_nulls(subset=["date"])
 
         return alphas
 
@@ -99,7 +121,7 @@ class LambdaOptimizer:
 
         # Build dot-product expressions: sum(exposure_i * alpha_i)
         alpha_terms = [
-            (pl.col(c) * pl.col(f"{c}_alpha")).alias(f"{c}_term")
+            (pl.col(c).fill_null(0.0) * pl.col(f"{c}_alpha")).alias(f"{c}_term")
             for c in factor_cols
         ]
 

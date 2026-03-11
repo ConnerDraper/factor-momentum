@@ -14,29 +14,36 @@ SPLITS = {
 GAMMA = 50          # Risk aversion parameter for Mean-Variance Optimization (MVO)
 IC = 0.05           # Assumed Information Coefficient for alpha generation
 
-# Window length (in days) used for the Exponentially Weighted Moving Average 
-# to calculate trailing Sharpe for the dynamic lambda portfolio
-TRAILING_PERF_SPAN_DAYS = 756 
+# Window parameters for Momentum Signal calculation
+WINDOW_LENGTH = 231
+SKIP_LENGTH = 21
 
-# Grid of half-lives (HL) to test, represented as lambda decay parameters.
-# lambda = ln(2) / HL
-LAMBDA_GRID = [
-    0.693/21,   # HL = 1 mo
-    0.693/42,   # HL = 2 mo
-    0.693/63,   # HL = 3 mo
-    0.693/126,  # HL = 6 mo
-    0.693/189,  # HL = 9 mo
-    0.693/252,  # HL = 12 mo
-    0.693/378,  # HL = 18 mo
-    0.693/504,  # HL = 24 mo
-    0.693/756,  # HL = 36 mo
-    0.693/1008, # HL = 48 mo
+# Factor groupings (based on Barra USE4 nominal names)
+STYLE_FACTORS = [
+    "BETA", "DIVYILD", "EARNQLTY", "EARNYILD", "GROWTH", "LEVERAGE", 
+    "LIQUIDTY", "LTREVRSL", "MGMTQLTY", "MIDCAP", "MOMENTUM", "PROFIT", 
+    "PROSPECT", "RESVOL", "SIZE", "VALUE"
 ]
 
+INDUSTRY_FACTORS = [
+    "AERODEF", "AIRLINES", "ALUMSTEL", "APPAREL", "AUTO", "BANKS", 
+    "BEVTOB", "BIOLIFE", "BLDGPROD", "CHEM", "CNSTENG", "CNSTMACH", 
+    "CNSTMATL", "COMMEQP", "COMPELEC", "COMSVCS", "CONGLOM", "CONTAINR", 
+    "DISTRIB", "DIVFIN", "ELECEQP", "ELECUTIL", "FOODPROD", "FOODRET", 
+    "GASUTIL", "HLTHEQP", "HLTHSVCS", "HOMEBLDG", "HOUSEDUR", "INDMACH", 
+    "INSURNCE", "INTERNET", "LEISPROD", "LEISSVCS", "LIFEINS", "MEDIA", 
+    "MGDHLTH", "MULTUTIL", "OILGSCON", "OILGSDRL", "OILGSEQP", "OILGSEXP", 
+    "PAPER", "PHARMA", "PRECMTLS", "PSNLPROD", "REALEST", "RESTAUR", 
+    "ROADRAIL", "SEMICOND", "SEMIEQP", "SOFTWARE", "SPLTYRET", "SPTYCHEM", 
+    "SPTYSTOR", "TELECOM", "TRADECO", "TRANSPRT", "WIRELESS"
+]
+
+FACTOR_GROUPS = ["Style", "Industry", "All"]
+
 # ── Paths ───────────────────────────────────────────────────────────────────
-PROJECT_ROOT = "/home/connerd4/silverfund/momentum2"
-FACTORS_PATH = "/home/connerd4/groups/grp_quant/database/development/factors/factors_*.parquet"
-EXPOSURES_PATH = "/home/connerd4/groups/grp_quant/database/development/exposures/exposures_*.parquet"
+PROJECT_ROOT = "/home/connerd4/silverfund/momentum"
+FACTORS_PATH = "/home/connerd4/groups/grp_quant/database/research/factors/factors_*.parquet"
+EXPOSURES_PATH = "/home/connerd4/groups/grp_quant/database/research/exposures/exposures_*.parquet"
 BYU_EMAIL = "connerd4@byu.edu"
 
 # ── Backtest constraints ───────────────────────────────────────────────────
@@ -44,9 +51,9 @@ BYU_EMAIL = "connerd4@byu.edu"
 CONSTRAINTS = ["ZeroBeta", "ZeroInvestment"]
 
 
-def signal_name(lamb: float) -> str:
-    """Consistent signal name for a given lambda value."""
-    return f"factor_momentum_lambda_{lamb:.6f}"
+def signal_name(factor_group: str) -> str:
+    """Consistent signal name for a given factor group."""
+    return f"factor_momentum_{factor_group.lower()}"
 
 
 def split_dir(split: str) -> str:
@@ -54,11 +61,11 @@ def split_dir(split: str) -> str:
     return f"{PROJECT_ROOT}/results/{split}"
 
 
-def alphas_path(split: str, lamb: float) -> str:
-    """Path to the alpha parquet for a given split and lambda."""
-    return f"{split_dir(split)}/alphas/{signal_name(lamb)}.parquet"
+def alphas_path(split: str, factor_group: str) -> str:
+    """Path to the alpha parquet for a given split and factor group."""
+    return f"{split_dir(split)}/alphas/{signal_name(factor_group)}.parquet"
 
 
-def weights_dir(split: str, lamb: float) -> str:
-    """Path to the weights directory for a given split and lambda."""
-    return f"{split_dir(split)}/weights/{signal_name(lamb)}/{GAMMA}"
+def weights_dir(split: str, factor_group: str) -> str:
+    """Path to the weights directory for a given split and factor group."""
+    return f"{split_dir(split)}/weights/{signal_name(factor_group)}/{GAMMA}"

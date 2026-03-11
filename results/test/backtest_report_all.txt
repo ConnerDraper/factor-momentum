@@ -1,0 +1,15 @@
+Processing Style...
+Loading weights from /home/connerd4/silverfund/momentum/results/test/weights/factor_momentum_style/50/*.parquet
+Processing Industry...
+Loading weights from /home/connerd4/silverfund/momentum/results/test/weights/factor_momentum_industry/50/*.parquet
+Processing All...
+Loading weights from /home/connerd4/silverfund/momentum/results/test/weights/factor_momentum_all/50/*.parquet
+
+Backtest Summary
+--------------------------------------------------
+Portfolio          Mean Ret %   Vol %      Sharpe  
+--------------------------------------------------
+Group: All          45.16      67.29     0.671
+Group: Industry     12.62      65.99     0.191
+Group: Style        22.64      33.62     0.673
+--------------------------------------------------

@@ -1,7 +1,7 @@
 [project]
 name = "momentum"
 version = "0.1.0"
-description = "Add your description here"
+description = "Industry and style momentum"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -10,5 +10,10 @@ dependencies = [
     "ipywidgets>=8.1.8",
     "numpy>=2.4.2",
     "pyarrow>=23.0.0",
-    "sf-backtester>=0.1.1",
+    "sf-quant==0.1.23",
+    "sf-backtester",
+    "polars",
 ]
+
+[tool.uv.sources]
+sf-quant = { path = "../sf-quant", editable = true }
