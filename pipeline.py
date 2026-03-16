@@ -28,23 +28,37 @@ class FactorOptimizer:
             (pl.col("date") >= padded_start) & (pl.col("date") <= end)
         )
 
-    def compute_alphas(self, returns: pl.LazyFrame, factor_group: str) -> pl.DataFrame:
+    def compute_scores(self, returns: pl.LazyFrame, factor_group: str) -> pl.DataFrame:
         """
-        Compute alphas from factor returns using Top-Down to Bottom-Up strategy.
+        Compute factor-level z-scores from factor returns.
+
+        Returns a DataFrame with columns: date, <factor_col_1>, ..., <factor_col_N>
+        where each factor column contains the cross-sectional z-score.
         """
         df = returns.collect().sort("date")
         
         # Determine factor columns based on group
         if factor_group == "Style":
-            factor_cols = [c for c in df.columns if c.split("_")[-1] in STYLE_FACTORS]
+            expected = set(STYLE_FACTORS)
         elif factor_group == "Industry":
-            factor_cols = [c for c in df.columns if c.split("_")[-1] in INDUSTRY_FACTORS]
+            expected = set(INDUSTRY_FACTORS)
         elif factor_group == "All":
-            factor_cols = [c for c in df.columns if c.split("_")[-1] in STYLE_FACTORS or c.split("_")[-1] in INDUSTRY_FACTORS]
+            expected = set(STYLE_FACTORS) | set(INDUSTRY_FACTORS)
         else:
             raise ValueError(f"Unknown factor group: {factor_group}")
-            
-        factor_cols = [c for c in factor_cols if c in df.columns]
+
+        factor_cols = [c for c in df.columns if c.split("_")[-1] in expected]
+        found = {c.split("_")[-1] for c in factor_cols}
+        missing = sorted(expected - found)
+
+        print(f"[{factor_group}] {len(factor_cols)}/{len(expected)} factors matched", flush=True)
+        if missing:
+            print(f"[{factor_group}] Missing factors: {missing}", flush=True)
+
+        # Convert simple returns to log returns: log(1 + r)
+        df = df.with_columns(
+            [pl.col(c).log1p().alias(c) for c in factor_cols]
+        )
 
         # 1. Calculate Rolling Sum (Momentum Signal)
         signal = df.select(
@@ -52,7 +66,7 @@ class FactorOptimizer:
             *[pl.col(c).rolling_sum(window_size=WINDOW_LENGTH).shift(SKIP_LENGTH).alias(c) for c in factor_cols]
         )
 
-        # 3. Volatility Scaling (Risk Equalization)
+        # 2. Volatility Scaling (Risk Equalization)
         vol = df.select(
             "date",
             *[pl.col(c).rolling_std(window_size=WINDOW_LENGTH).shift(SKIP_LENGTH).alias(c) for c in factor_cols]
@@ -63,7 +77,7 @@ class FactorOptimizer:
             **{c: signal[c] / vol[c] for c in factor_cols}
         })
 
-        # 4. Cross-Sectional Z-Score
+        # 3. Cross-Sectional Z-Score
         signal_vals = scaled_signal.select(factor_cols)
         
         # Calculate row mean ignoring nulls/NaNs
@@ -77,18 +91,13 @@ class FactorOptimizer:
         # Calculate row std ignoring nulls/NaNs
         row_std = sq_diffs.mean_horizontal().sqrt()
 
-        # Z-score and clip, then fill remaining NaNs with 0 (neutral view)
+        # Z-score, clip, and fill NaNs with 0 (neutral view)
         scores = pl.DataFrame({
-            c: ((scaled_signal[c] - row_mean) / row_std).clip(-3.0, 3.0).fill_nan(0.0).fill_null(0.0) for c in factor_cols
-        })
-
-        # 5. Factor Alpha Mapping
-        alphas = pl.DataFrame({
             "date": df["date"],
-            **{c: (IC * vol[c].fill_nan(0.0).fill_null(0.0) * np.sqrt(252) * scores[c]).fill_nan(0.0).fill_null(0.0) for c in factor_cols}
+            **{c: ((scaled_signal[c] - row_mean) / row_std).clip(-3.0, 3.0).fill_nan(0.0).fill_null(0.0) for c in factor_cols}
         }).drop_nulls(subset=["date"])
 
-        return alphas
+        return scores
 
     def load_exposures(self, start: dt.date, end: dt.date) -> pl.LazyFrame:
         """Load Barra factor exposures per stock for the given date range."""
@@ -97,35 +106,37 @@ class FactorOptimizer:
         )
 
     def load_assets(self, start: dt.date, end: dt.date) -> pl.LazyFrame:
-        """Load stock-level data (price, predicted_beta) for universe filtering."""
+        """Load stock-level data (price, predicted_beta, specific_risk) for universe filtering."""
         return sfd.load_assets(
             start=start, end=end,
-            columns=["date", "barrid", "price", "predicted_beta"],
+            columns=["date", "barrid", "price", "predicted_beta", "specific_risk"],
             in_universe=True,
         ).lazy()
 
     def map_to_assets(
         self,
-        factor_alphas: pl.DataFrame,
+        factor_scores: pl.DataFrame,
         start: dt.date,
         end: dt.date,
         min_price: float = 5.0,
     ) -> pl.DataFrame:
         """
-        Map factor alphas → stock alphas, join with assets, and filter universe.
+        Map factor z-scores → asset z-scores → asset alphas via Grinold's formula.
         Processes one year at a time to avoid OOM on large exposure data.
+
+        alpha_i = IC × σ_idio_i × z_i
 
         Returns df with columns: date, barrid, predicted_beta, alpha.
         """
-        factor_cols = [c for c in factor_alphas.columns if c != "date"]
+        factor_cols = [c for c in factor_scores.columns if c != "date"]
 
-        # Build dot-product expressions: sum(exposure_i * alpha_i)
-        alpha_terms = [
-            (pl.col(c).fill_null(0.0) * pl.col(f"{c}_alpha")).alias(f"{c}_term")
+        # Build dot-product expressions: z_asset = sum(exposure_i * z_factor_i)
+        score_terms = [
+            (pl.col(c).fill_null(0.0) * pl.col(f"{c}_score")).alias(f"{c}_term")
             for c in factor_cols
         ]
 
-        # Load assets once (small: only 4 columns)
+        # Load assets once (includes specific_risk for Grinold's formula)
         assets = self.load_assets(start, end).collect().sort(["barrid", "date"])
         assets = assets.with_columns(
             pl.col("price").shift(1).over("barrid").alias("prev_price")
@@ -136,10 +147,10 @@ class FactorOptimizer:
         chunks = []
 
         for year in years:
-            year_alphas = factor_alphas.filter(
+            year_scores = factor_scores.filter(
                 (pl.col("date").dt.year() == year)
             )
-            if year_alphas.height == 0:
+            if year_scores.height == 0:
                 continue
 
             # Load just this year's exposures
@@ -149,20 +160,23 @@ class FactorOptimizer:
             except FileNotFoundError:
                 continue
 
-            # Join exposures × factor alphas, compute dot product
-            merged = exp_year.join(year_alphas, on="date", suffix="_alpha")
-            stock_alphas = (
-                merged.select("date", "barrid", *alpha_terms)
+            # Join exposures × factor scores, compute dot product → asset z-score
+            merged = exp_year.join(year_scores, on="date", suffix="_score")
+            stock_scores = (
+                merged.select("date", "barrid", *score_terms)
                 .with_columns(
-                    pl.sum_horizontal([f"{c}_term" for c in factor_cols]).alias("alpha")
+                    pl.sum_horizontal([f"{c}_term" for c in factor_cols]).alias("z_score")
                 )
-                .select("date", "barrid", "alpha")
+                .select("date", "barrid", "z_score")
             )
 
-            # Join with assets and filter
+            # Join with assets and apply Grinold's formula: alpha = IC * sigma_idio * z
             year_assets = assets.filter(pl.col("date").dt.year() == year)
             filtered = (
-                stock_alphas.join(year_assets, on=["date", "barrid"], how="inner")
+                stock_scores.join(year_assets, on=["date", "barrid"], how="inner")
+                .with_columns(
+                    (IC * (pl.col("specific_risk") / 100) * pl.col("z_score")).alias("alpha")
+                )
                 .filter(
                     (pl.col("prev_price") > min_price) &
                     pl.col("predicted_beta").is_not_null() &
@@ -173,7 +187,7 @@ class FactorOptimizer:
             chunks.append(filtered)
 
             # Free memory
-            del exp_year, merged, stock_alphas, filtered
+            del exp_year, merged, stock_scores, filtered
 
         return pl.concat(chunks).sort("date", "barrid")
 

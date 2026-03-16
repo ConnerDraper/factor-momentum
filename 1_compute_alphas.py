@@ -33,14 +33,14 @@ def main():
     for group in groups:
         print(f"  Group={group}...", flush=True)
 
-        factor_alphas = optimizer.compute_alphas(returns, group)
+        factor_scores = optimizer.compute_scores(returns, group)
         
         # We need to filter back the dataframe because `returns` is padded now 
-        factor_alphas = factor_alphas.filter(
+        factor_scores = factor_scores.filter(
             (pl.col("date") >= split["start"]) & (pl.col("date") <= split["end"])
         )
 
-        filtered = optimizer.map_to_assets(factor_alphas, split["start"], split["end"])
+        filtered = optimizer.map_to_assets(factor_scores, split["start"], split["end"])
 
         out = alphas_path(args.split, group)
         os.makedirs(os.path.dirname(out), exist_ok=True)

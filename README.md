@@ -4,16 +4,22 @@ Backtesting a Top-Down to Bottom-Up factor momentum strategy using Barra factor 
 
 ## Strategy
 
-For each factor *i* in a predefined group (Style, Industry, All), we compute a vol-adjusted momentum signal over a 12-to-1 month lookback window:
+For each factor *i* in a predefined group (Style, Industry, All), we convert simple returns to log returns and compute a vol-adjusted momentum signal over an 11-to-1 month lookback window (231 trading days, skip 21):
 
 ```
-signal_i = RollingSum(r_i) / RollingStd(r_i)
+signal_i = RollingSum(log(1 + r_i)) / RollingStd(log(1 + r_i))
 ```
 
-Signals are z-scored cross-sectionally, then converted to stock-level alphas via factor exposures:
+Signals are z-scored cross-sectionally to produce factor-level z-scores. These are then mapped to asset-level z-scores via Barra factor exposures:
 
 ```
-alpha_stock = Σ (exposure_i × IC × risk_{i,t-1} × score_{i,t-1})
+z_asset = Σ (exposure_i × z_factor_i)
+```
+
+Asset-level z-scores are converted to alphas using Grinold's fundamental law with stock-specific (idiosyncratic) risk:
+
+```
+alpha_asset = IC × σ_idio × z_asset
 ```
 
 By separating Style and Industry factors, we can independently investigate how Style Momentum vs Industry Momentum (and All-Factor Momentum) perform over the backtest.

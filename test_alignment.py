@@ -10,13 +10,13 @@ opt = FactorOptimizer()
 group = "All"
 
 returns = opt.load_factor_returns(start, end).collect()
-alphas = opt.compute_alphas(returns.lazy(), group)
+scores = opt.compute_scores(returns.lazy(), group)
 
 # Filter back down because FactorOptimizer loads extra history for rolling metrics
 returns = returns.filter((pl.col("date") >= start) & (pl.col("date") <= end))
-alphas = alphas.filter((pl.col("date") >= start) & (pl.col("date") <= end))
+scores = scores.filter((pl.col("date") >= start) & (pl.col("date") <= end))
 
-df = returns.join(alphas, on="date", suffix="_alpha")
+df = returns.join(scores, on="date", suffix="_score")
 print("Data aligned by date:")
 if "BETA" in df.columns:
     print(df.select(["date", "BETA", "BETA_alpha"]).head(10))
