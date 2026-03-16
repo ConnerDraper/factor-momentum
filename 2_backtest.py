@@ -28,7 +28,7 @@ def main():
     slurm_config = SlurmConfig(
         n_cpus=8,
         mem="64G",
-        time="02:00:00",
+        time="00:07:00",
         mail_type="BEGIN,END,FAIL",
         max_concurrent_jobs=30,
     )

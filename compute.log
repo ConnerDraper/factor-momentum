@@ -3,10 +3,13 @@ Split: test (2010-01-01 to 2025-01-01)
 Computing alphas for 3 factor group(s)...
 
   Group=Style...
+[Style] 16/16 factors matched
     ✓ 10,303,452 rows → /home/connerd4/silverfund/momentum/results/test/alphas/factor_momentum_style.parquet
   Group=Industry...
+[Industry] 59/59 factors matched
     ✓ 10,303,452 rows → /home/connerd4/silverfund/momentum/results/test/alphas/factor_momentum_industry.parquet
   Group=All...
+[All] 75/75 factors matched
     ✓ 10,303,452 rows → /home/connerd4/silverfund/momentum/results/test/alphas/factor_momentum_all.parquet
 
 Done.

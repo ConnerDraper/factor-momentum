@@ -55,9 +55,9 @@ class FactorOptimizer:
         if missing:
             print(f"[{factor_group}] Missing factors: {missing}", flush=True)
 
-        # Convert simple returns to log returns: log(1 + r)
+        # Convert simple returns (percentage-point form) to log returns: log(1 + r/100)
         df = df.with_columns(
-            [pl.col(c).log1p().alias(c) for c in factor_cols]
+            [(pl.col(c) / 100).log1p().alias(c) for c in factor_cols]
         )
 
         # 1. Calculate Rolling Sum (Momentum Signal)
