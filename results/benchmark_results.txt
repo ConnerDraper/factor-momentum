@@ -1,0 +1,16 @@
+Optimizer Benchmark Results
+Old (v0.1.23, full Σ) vs New (factored B·F·B'+D)
+
+     N     Old (s)     New (s)   Speedup   Match
+------------------------------------------------
+   100      0.1297      0.1861     0.70x     Yes
+   200      0.1529      0.1888     0.81x     Yes
+   400      0.2483      0.1873     1.33x     Yes
+   800      0.7493      0.1940     3.86x     Yes
+  1600      3.5378      0.2251    15.72x     Yes
+  2974     21.7154      0.2404    90.33x     Yes
+------------------------------------------------
+
+Speedup range: 0.70x – 90.33x
+All weights match: Yes
+Repeats per (version, N): 3

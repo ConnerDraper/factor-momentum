@@ -31,6 +31,7 @@ By separating Style and Industry factors, we can independently investigate how S
 | 1 | `1_compute_alphas.py` | Compute & save stock-level alpha parquets for each factor group |
 | 2 | `2_backtest.py` | Submit MVO backtest jobs to Slurm for each static factor group |
 | 3 | `3_visualize.py` | Plot cumulative returns, drawdown, and rolling Sharpe for factor groups |
+| — | `benchmark_optimizer.py` | Benchmark sf-quant optimizer refactor (speed & correctness) |
 
 Shared logic lives in `pipeline.py`. 
 
@@ -55,12 +56,25 @@ nohup uv run python 2_backtest.py --split full --clean > submission.log 2>&1 &
 uv run python 3_visualize.py --split full
 ```
 
+### Benchmarking
+
+Compare the optimizer refactor (factored covariance) against the v0.1.23 baseline (full covariance matrix):
+
+```bash
+# Ensure alphas are pre-computed first (step 1 above)
+# 💡 Tip: Use nohup — the benchmark can take a while at large N.
+nohup uv run python benchmark_optimizer.py > benchmark.log 2>&1 &
+# Output: console table in benchmark.log + results/benchmark_results.txt + results/benchmark_optimizer.png
+```
+
 ## Output Structure
 
 ```
 results/
-└── full/
-    ├── alphas/            
-    ├── weights/           # Slurm MVO static weights
-    └── backtest_performance_all.png
+├── full/
+│   ├── alphas/            
+│   ├── weights/           # Slurm MVO static weights
+│   └── backtest_performance_all.png
+├── benchmark_optimizer.png
+└── benchmark_results.txt
 ```
